@@ -1,0 +1,86 @@
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta http-equiv=Content-Type content="text/html; charset=windows-1252"><meta name=ProgId content=Word.Document><meta name=Generator content="Microsoft Word 15"><meta name=Originator content="Microsoft Word 15"><link rel=File-List href="Untitled_files/filelist.xml"><link rel=Edit-Time-Data href="Untitled_files/editdata.mso"><link rel=themeData href="Untitled_files/themedata.thmx"><link rel=colorSchemeMapping href="Untitled_files/colorschememapping.xml">
+<style>
+.heads {font-weight:bold;font-size:14.0pt;}
+.info {font-size:12.0pt;color:#00B050;font-weight:bold;}
+.fixed {font-size:11.0pt;color:#A5A5A5;font-weight:bold;}
+.warn {font-size:12.0pt;color:#FFC000;font-weight:bold;}
+.critical {font-size:12.0pt;color:red;font-weight:bold;}
+.table {border-collapse:collapse;border:none;mso-border-alt:solid windowtext .5pt;mso-yfti-tbllook:1184;
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;}
+.tr {mso-yfti-irow:0;mso-yfti-firstrow:yes;}
+.td {border:solid windowtext 1.0pt;
+	mso-border-alt:solid windowtext .5pt;padding:0in 5.4pt 0in 5.4pt;}
+</style><title></title></head>
+ 
+    <body><div class=WordSection1>
+    <p>This is auto generataed on: <span class='info'>Fri 03/06/20 19:40:18</span></p><p></p>
+    <p>Dear NOC,</p><p></p>
+    <p>Here is the latest stats of <span class='info'>ITS CS ENM INPUT</span> for past <span class='info'>5</span> minutes:</p>
+<table class=MsoTableGrid border=1 cellspacing=0 cellpadding=0>
+    <tr class=heads>
+    <td width=150 valign=middle align=center rowspan=2>Flow</td>
+<td width=150 valign=middle align=center rowspan=2>Time</td>
+<td width=300 valign=middle align=center colspan=3>Success Rate</td>
+<td width=400 valign=middle align=center colspan=4>Transaction Per Second</td></tr>
+    <tr class=heads style='font-size:12.0pt'>
+    <td width=100 valign=middle align=center>Min</td>
+    <td width=100 valign=middle align=center>Average</td>
+    <td width=100 valign=middle align=center>Last</td>
+    <td width=100 valign=middle align=center>Max</td>
+    <td width=100 valign=middle align=center>Average</td>
+    <td width=100 valign=middle align=center>Threshold</td>
+    <td width=100 valign=middle align=center>Last</td><tr>
+<tr><td>INP_SMPP</td><td
+align=center>2020-03-06
+19:40:00</td><td
+align=center>100.0</td><td
+align=center>100.0</td><td
+align=center><span
+class=info>100.0</span></td><td
+align=center>1127.0</td><td
+align=center>440.4</td><td
+align=center><span
+class=fixed>500</span></td><td
+align=center><span
+class=critical>1046.4</span></td></tr>
+<tr><td>INP_CDR</td><td
+align=center>2020-03-06
+19:40:00</td><td
+align=center>34.0</td><td
+align=center>44.4</td><td
+align=center><span
+class=warn>34.4</span></td><td
+align=center>401.4</td><td
+align=center>196.0</td><td
+align=center><span
+class=fixed>500</span></td><td
+align=center><span
+class=warn>347.7</span></td></tr>
+<tr><td>INP_REFILL</td><td
+align=center>2020-03-06
+19:40:00</td><td
+align=center>74.6</td><td
+align=center>78.4</td><td
+align=center><span
+class=warn>74.9</span></td><td
+align=center>126.8</td><td
+align=center>51.6</td><td
+align=center><span
+class=fixed>210</span></td><td
+align=center><span
+class=warn>122.3</span></td></tr>
+<tr><td>INP_MISC</td><td
+align=center>2020-03-06
+19:40:00</td><td
+align=center>99.9</td><td
+align=center>100.0</td><td
+align=center><span
+class=info>100.0</span></td><td
+align=center>75.3</td><td
+align=center>7.9</td><td
+align=center><span
+class=fixed>210</span></td><td
+align=center><span
+class=info>4.8</span></td></tr>
+</div></table><p>Regards,</p><p>Irancell ITS CS ENM</p></body></html>
