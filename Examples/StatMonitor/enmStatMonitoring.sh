@@ -1,5 +1,5 @@
 #!/bin/bash
-#andisheh.k v1.0 5-Mar-2020
+#andisheh.k v1.1 07-Mar-2020
 
 #Includes
 my_dir="$(dirname "$0")"
@@ -144,11 +144,11 @@ prepare_report(){
     <td width=100 valign=middle align=center>Max</td>
     <td width=100 valign=middle align=center>Average</td>
     <td width=100 valign=middle align=center>Threshold</td>
-    <td width=100 valign=middle align=center>Last</td><tr>" >> $1
+    <td width=100 valign=middle align=center>Last</td></tr>" >> $1
     for flow in ${flows[@]}; do
 	echo $flow >> $1
     done	
-    echo "</div></table><p>Regards,</p><p>Irancell ITS CS ENM</p></body></html>" >> $1
+    echo "</table><p>Regards,</p><p>Irancell ITS CS ENM</p></div></body></html>" >> $1
 }
 
 #Sends out the report using mutt, and then back up the last sent email
@@ -158,7 +158,7 @@ send_report(){
     [ ! -f "$1" ] && log ERROR "$1 does not exist" &&  return 2     
     [ ! -z "$CC_ADDR" ] && opt="-c $CC_ADDR"   
     [ -z "$SUBJECT" ] && SUBJECT=NONE
-    mutt -e 'set  content_type=text/html' -e 'set from=$FROM_ADDR' $opt -s "$SUBJECT" "$TO_ADDR"  < $1
+    EMAIL="$FROM_ADDR" mutt -e 'set  content_type=text/html' $opt -s "$SUBJECT" "$TO_ADDR"  < $1
     [ "$?" != 0 ] && ( log ERROR "Failed to mail $1" || return 2)
     tmp="$LOG_PATH/$1".$(date +"%Y%m%d%H%M%S")
     mv "$1" $tmp
