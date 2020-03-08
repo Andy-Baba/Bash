@@ -1,5 +1,5 @@
 #!/bin/bash
-#andisheh.k v1.1 07-Mar-2020
+#andisheh.k v1.2 07-Mar-2020
 
 #Includes
 my_dir="$(dirname "$0")"
@@ -17,15 +17,15 @@ datetime=$(date '+%a %D %T')
 
 reportDate=$(date +%Y-%m-%d)
 
-ROW_FORMAT="<tr><td>%s</td><td align=center>%s</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center><span class=%s>%.1f</span></td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center><span class=fixed>%-d</span></td><td align=center><span class=%s>%.1f</span></td></tr>"
+ROW_FORMAT="<tr><td>%s</td><td align=center>%s</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center class=note>%-d</td><td align=center class=note>%d</td></tr>"
 
 _main(){
-    log INFO "Start of the process-------------------------"
     startEpoch=$(date +%s)
-    log INFO "Loading the configuration"
     load_config $CONFIG_FILE
-    verify_config
     LOG_FILE="$LOG_PATH/$LOG_NAME-$reportDate".log
+    log INFO "Start of the script-------------------------"
+    log INFO "Verifying the configuration"
+    verify_config
     log INFO "Start the analyzing each flow"
     analyze_eachFlowInConfig
     REPORT_FILE=email.html
@@ -33,7 +33,7 @@ _main(){
     prepare_report $REPORT_FILE
     send_report $REPORT_FILE
     endEpoch=$(date +%s)
-    log INFO "End of the processin $(( endEpoch-startEpoch )) seconds---------------"    
+    log INFO "End of the script in $(( endEpoch-startEpoch )) seconds---------------"    
     exit 0
 }
 
@@ -81,12 +81,11 @@ analyze_stat(){
     result=$(zfgrep -h "$1" $2 | \
     awk -v reportDate="$3" -v threshold="$4" -v name=$5 -v flow="$1" -v rowFormat="$ROW_FORMAT" -F',' \
         'substr($1,1,10) == reportDate { 
-            succ[$1]+=$(NF-3);failed[$1]+=$(NF-2);tps[$1]+=$(NF);} 
+            tps[$1]+=$(NF);total[$1]+=$(NF-1);succ[$1]+=$(NF-3);}
         END { 
             minSuccRate=100; 
             for (a in tps) {           
-                succRate=succ[a]/(succ[a]+failed[a])*100;
-		
+                succRate=succ[a]/total[a]*100;
                 lastTPS=tps[a];
                 count++; succRateSum+=succRate; tpsSum+=lastTPS;
 		if(a > lastTime) lastTime=a;
@@ -94,7 +93,8 @@ analyze_stat(){
                 if(maxTPS < lastTPS) {maxTime=a; maxTPS=lastTPS}
             }
 	    lastTPS=tps[lastTime];
-	    succRate=succ[lastTime]/(succ[lastTime]+failed[lastTime])*100;           
+            lastTPM=total[lastTime]/5;
+	    succRate=succ[lastTime]/total[lastTime]*100;           
 	    aveSuccRate=succRateSum/count;
 	    classSuccRate="info";
 	    if(succRate < aveSuccRate) classSuccRate="warn";
@@ -103,7 +103,7 @@ analyze_stat(){
 	    if(lastTPS > aveTPS) classLastTPS="warn";
 	    if(lastTPS > threshold) classLastTPS="critical"; 
 
-	    printf(rowFormat, name, lastTime, minSuccRate, aveSuccRate, classSuccRate, succRate, maxTPS, aveTPS, threshold, classLastTPS,lastTPS );
+            printf(rowFormat, name, lastTime, minSuccRate, aveSuccRate, classSuccRate, succRate, maxTPS, aveTPS, classLastTPS, lastTPS, threshold, lastTPM);
         }')
 	log DEBUG "Done with code $?"	
 }
@@ -121,8 +121,9 @@ prepare_report(){
 .table {border-collapse:collapse;border:none;mso-border-alt:solid windowtext .5pt;mso-yfti-tbllook:1184;
 	mso-padding-alt:0in 5.4pt 0in 5.4pt;}
 .tr {mso-yfti-irow:0;mso-yfti-firstrow:yes;}
-.td {border:solid windowtext 1.0pt;
-	mso-border-alt:solid windowtext .5pt;padding:0in 5.4pt 0in 5.4pt;}
+.td {border:solid windowtext 1.0pt;mso-border-alt:solid windowtext .5pt;padding:0in 5.4pt 0in 5.4pt;}
+.td.data {width:100;valign:middle;align:center;background-color:yellow}
+.note {background-color:yellow}	
 </style><title></title></head>' > $1
     log DEBUG "Wrting the body"    
     echo " 
@@ -136,15 +137,17 @@ prepare_report(){
     <td width=150 valign=middle align=center rowspan=2>Flow</td>
 <td width=150 valign=middle align=center rowspan=2>Time</td>
 <td width=300 valign=middle align=center colspan=3>Success Rate</td>
-<td width=400 valign=middle align=center colspan=4>Transaction Per Second</td></tr>
+<td width=300 valign=middle align=center colspan=3>Trans. Per Second</td>
+<td width=200 valign=middle align=center colspan=2 class=note>Trans. Per Minute</td></tr>
     <tr class=heads style='font-size:12.0pt'>
     <td width=100 valign=middle align=center>Min</td>
     <td width=100 valign=middle align=center>Average</td>
     <td width=100 valign=middle align=center>Last</td>
     <td width=100 valign=middle align=center>Max</td>
     <td width=100 valign=middle align=center>Average</td>
-    <td width=100 valign=middle align=center>Threshold</td>
-    <td width=100 valign=middle align=center>Last</td></tr>" >> $1
+    <td width=100 valign=middle align=center>Last</td>
+    <td width=100 valign=middle align=center class=note>Threshold</td>
+    <td width=100 valign=middle align=center class=note>Last</td></tr>" >> $1
     for flow in ${flows[@]}; do
 	echo $flow >> $1
     done	
