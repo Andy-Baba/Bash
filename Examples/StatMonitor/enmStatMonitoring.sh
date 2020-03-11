@@ -1,5 +1,5 @@
 #!/bin/bash
-#andisheh.k v1.2 07-Mar-2020
+#andisheh.k v2.0 11-Mar-2020
 
 #Includes
 my_dir="$(dirname "$0")"
@@ -19,15 +19,34 @@ reportDate=$(date +%Y-%m-%d)
 
 ROW_FORMAT="<tr><td>%s</td><td align=center>%s</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center class=note>%-d</td><td align=center class=note>%d</td></tr>"
 
+TITLES[1]=name
+TITLES[2]=lastTime
+TITLES[3]=minSuccRate
+TITLES[4]=aveSuccRate
+TITLES[5]=succRate
+TITLES[6]=maxTPS
+TITLES[7]=aveTPS
+TITLES[8]=lastTPS
+TITLES[9]=threshold
+TITLES[10]=lastTPM
+#TITLES[9]=lastTPM
+#TITLES[10]=threshold
+
 _main(){
     startEpoch=$(date +%s)
     load_config $CONFIG_FILE
     LOG_FILE="$LOG_PATH/$LOG_NAME-$reportDate".log
     log INFO "Start of the script-------------------------"
     log INFO "Verifying the configuration"
-    verify_config
-    log INFO "Start the analyzing each flow"
-    analyze_eachFlowInConfig
+
+    declare -A flows
+    analyze_config
+
+    declare -A data
+    generate_data 
+
+    prepare_rows    
+
     REPORT_FILE=email.html
     log INFO "Generating the report email $REPORT_FILE"
     prepare_report $REPORT_FILE
@@ -44,31 +63,33 @@ load_config(){
     log DEBUG "Loading the configurations from $1 ..."
     [ ! -f "$1" ] && (log ERROR "File $1 deos not exist! exiting..." || exit 2)
     . "$1"
-    log DEBUG "File $configFile loaded sucessfully"
+    if [ "$?" == 0 ];
+    then
+        log INFO "File $1 loaded sucessfully"
+    else
+        log ERROR "There was an issue loading $1, return code is $?,exitting"
+        exit 2
+    fi
+    log DEBUG "Done"
 }
 
-
-verify_config(){
+analyze_config(){
     [ -z "$CC_ADDR" ] && log WARN "CC_ADDR is not defined or empty"
     [ -z "$TO_ADDR" ] && log ERROR "TO_ADDR is required to be set in config. Exit 2" && exit 2
     [ -z "$DURATION" ] && log ERROR "DURATION is required to be set in config. Exit 2" && exit 2
-}
-#Arguments: None
-#Output: an array named 'rows' containing the result of each flow
-#Note: If it cannot find anything it will return nothing
-analyze_eachFlowInConfig() {
-    log DEBUG "Analyzing each flow based on what loaded from config"
+    log DEBUG "Reading the flows"
+    [ -n "$flows" ] && log ERROR "The associative array 'flows' should be defined, exiting" && exit 2
     for (( i=1; ; i++ ))
     do
         var="FLOW_$i"
         [ -z "${!var}" ] && break
         log DEBUG "${!var}"
-        IFS=$SEPARATOR read name flow threshold statFile <<< "${!var}"
-        local tmp="$STAT_PATH/$statFile"
-        analyze_stat "$flow" "$tmp*$reportDate* $tmp" $reportDate $threshold "$name"
-        flows[$i]=$result
+        IFS=$SEPARATOR read flows[$i,name] flows[$i,flow] flows[$i,threshold] \
+            flows[$i,statFile] flows[$i,family] <<< "${!var}"
+        flowsCount=$i
     done
-    log DEBUG "Done with code $?"
+    [ -z "$flowsCount" ] && log WARN "No FLOW was found, check the config file and try again!"
+    log DEBUG "Done"
 }
 
 #Analyze the stats based on each flow
@@ -76,10 +97,9 @@ analyze_eachFlowInConfig() {
 #Args: flow, files, time, threshold
 #Out: in result; a row containing the information based on ROW_FORMAT
 analyze_stat(){
-    log DEBUG "with args flow:$1 files:$2 time:$3 threshold:$4 name:$5"
-    [ -z "$ROW_FORMAT" ] && (log ERROR "ROW_FORMAT is not set! skippingg..." || return 2)
+    log DEBUG "With args flow:$1 files:$2 date:$3"   
     result=$(zfgrep -h "$1" $2 | \
-    awk -v reportDate="$3" -v threshold="$4" -v name=$5 -v flow="$1" -v rowFormat="$ROW_FORMAT" -F',' \
+    awk -v reportDate="$3" -v flow="$1" -F "$SEPARATOR" \
         'substr($1,1,10) == reportDate { 
             tps[$1]+=$(NF);total[$1]+=$(NF-1);succ[$1]+=$(NF-3);}
         END { 
@@ -96,16 +116,97 @@ analyze_stat(){
             lastTPM=total[lastTime]/5;
 	    succRate=succ[lastTime]/total[lastTime]*100;           
 	    aveSuccRate=succRateSum/count;
-	    classSuccRate="info";
-	    if(succRate < aveSuccRate) classSuccRate="warn";
 	    aveTPS=tpsSum/count;
-	    classLastTPS="info";
-	    if(lastTPS > aveTPS) classLastTPS="warn";
-	    if(lastTPS > threshold) classLastTPS="critical"; 
-
-            printf(rowFormat, name, lastTime, minSuccRate, aveSuccRate, classSuccRate, succRate, maxTPS, aveTPS, classLastTPS, lastTPS, threshold, lastTPM);
+            printf("%s,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d", lastTime, minSuccRate, aveSuccRate, succRate, maxTPS, aveTPS, lastTPS, lastTPM); 
         }')
+
+#            lastTPS=tps[lastTime];
+ #           lastTPM=total[lastTime]/5;
+  #          succRate=succ[lastTime]/total[lastTime]*100;           
+   #         aveSuccRate=succRateSum/count;
+    #        classSuccRate="info";
+     #       if(succRate < aveSuccRate) classSuccRate="warn";
+      #      aveTPS=tpsSum/count;
+       #     classLastTPS="info";
+        #    if(lastTPS > aveTPS) classLastTPS="warn";
+         #   if(lastTPS > threshold) classLastTPS="critical"; 
+
+#            printf(rowFormat, name, lastTime, minSuccRate, aveSuccRate, classSuccRate, succRate, maxTPS, aveTPS, classLastTPS, lastTPS, threshold, lastTPM); }')
 	log DEBUG "Done with code $?"	
+}
+
+generate_data(){
+    [ -n "$flows" ] && log ERROR "The associative array 'flows' should be defined, exiting" && exit 2
+    [ -n "$data" ] && log ERROR "The associative array 'data' should be defined, exiting" && exit 2
+    declare -A sumRows
+    log DEBUG "Start the preparation"
+    for (( i=1; i<=flowsCount; i++ ))
+    do	
+        local tmp="$STAT_PATH/${flows[$i,statFile]}"
+ #       ls $tmp > /dev/null 2>&1
+ #       [ ! $? -eq 0 ] && log ERROR "Nothing found with pattern: $tmp, skipping..." && continue
+        analyze_stat ${flows[$i,flow]} "$tmp*$reportDate* $tmp" $reportDate ${flows[$i,threshold]} ${flows[$i,name]}
+        log DEBUG "Processing $result"
+        data[$i,name]=${flows[$i,name]}
+        data[$i,threshold]=${flows[$i,threshold]}
+        IFS=, read data[$i,lastTime] data[$i,minSuccRate] data[$i,aveSuccRate] data[$i,succRate] \
+            data[$i,maxTPS] data[$i,aveTPS] data[$i,lastTPS] data[$i,lastTPM] <<< "$result"
+        [ $? != 0 ] && log ERROR "Could not extract data from result"
+
+        log DEBUG "Checking for same type of data"
+        local type=${flows[$i,family]}
+        if  [ -z ${sumRows[$type,count]}  ];then 
+            ((typesCount++))
+            types[$typesCount]=$type
+            log DEBUG "First occurance of flow with type $type"
+            sumRows[$type,count]=1
+            for a in ${TITLES[@]}; do
+                sumRows[$type,$a]=0
+            done
+            sumRows[$type,name]=${flows[$i,name]}
+        else
+            ((sumRows[$type,count]++))
+            log DEBUG "${sumRows[$type,count]} occurance of type $type"
+            sumRows[$type,name]="${sumRows[$type,name]} +${flows[$i,name]}"
+        fi
+	sumRows[$type,lastTime]=${data[$i,lastTime]}
+        for (( j=3; j <=${#TITLES[@]}; j++ )) do 
+            local tmp=$(bc<<<"${sumRows[$type,${TITLES[$j]}]}+${data[$i,${TITLES[$j]}]}")
+            sumRows[$type,${TITLES[$j]}]=$tmp
+        done
+        log DEBUG "Going to next result"
+    done
+
+    dataCount=$flowsCount
+    for (( i=1; i<=typesCount; i++ )) do
+        local tmp=${sumRows[${types[$i]},count]}
+	if [ $tmp -gt 1 ]; then
+            ((dataCount++))
+            for (( j=1; j<=${#TITLES[@]}; j++ )) do
+                local title=${TITLES[$j]}
+                if [ $title = minSuccRate ] || [ $title = aveSuccRate ] || [ $title = succRate ]; then
+                    local tmp="scale=1;${sumRows[${types[$i]},$title]}/${sumRows[${types[$i]},count]}"
+                    data[$dataCount,${TITLES[$j]}]=$(bc<<<"$tmp")
+		else
+                    data[$dataCount,${TITLES[$j]}]=${sumRows[${types[$i]},${TITLES[$j]}]}
+                fi
+            done
+        fi
+    done
+    log DEBUG "Done, $dataCount rows is inserted into 'data'"
+}
+
+prepare_rows() {
+    for (( i=1; i<=dataCount; i++)) do
+        for (( j=1; j<=${#TITLES[@]}; j++ )) do
+            local tmp=${data[$i,${TITLES[$j]}]}
+            [ -z "$tmp" ] && log ERROR "${TITLES[$j]} is empty, returning.." && return 2
+            printf "%s<td>%s</td>" "${rows[$i]}" "$tmp"
+            rows[$i]=$(printf "%s<td>%s</td>" "${rows[$i]}" "$tmp")
+        done
+        rows[$i]=$(printf "<tr>%s</tr>" "${rows[$i]}")
+    done
+    log DEBUG "Done"
 }
 
 prepare_report(){
@@ -140,6 +241,7 @@ prepare_report(){
 <td width=300 valign=middle align=center colspan=3>Trans. Per Second</td>
 <td width=200 valign=middle align=center colspan=2 class=note>Trans. Per Minute</td></tr>
     <tr class=heads style='font-size:12.0pt'>
+<!--    <td class=data>Min</td> -->
     <td width=100 valign=middle align=center>Min</td>
     <td width=100 valign=middle align=center>Average</td>
     <td width=100 valign=middle align=center>Last</td>
@@ -148,8 +250,8 @@ prepare_report(){
     <td width=100 valign=middle align=center>Last</td>
     <td width=100 valign=middle align=center class=note>Threshold</td>
     <td width=100 valign=middle align=center class=note>Last</td></tr>" >> $1
-    for flow in ${flows[@]}; do
-	echo $flow >> $1
+    for row in ${rows[@]}; do
+	echo $row >> $1
     done	
     echo "</table><p>Regards,</p><p>Irancell ITS CS ENM</p></div></body></html>" >> $1
 }
@@ -163,6 +265,7 @@ send_report(){
     [ -z "$SUBJECT" ] && SUBJECT=NONE
     EMAIL="$FROM_ADDR" mutt -e 'set  content_type=text/html' $opt -s "$SUBJECT" "$TO_ADDR"  < $1
     [ "$?" != 0 ] && ( log ERROR "Failed to mail $1" || return 2)
+    log INFO "report is emailed sucessfully"
     tmp="$LOG_PATH/$1".$(date +"%Y%m%d%H%M%S")
     mv "$1" $tmp
     [ "$?" != 0 ] && log WARN "Could not move $1 to $tmp"     
