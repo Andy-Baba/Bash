@@ -1,5 +1,5 @@
 #!/bin/bash
-#andisheh.k v2.0 11-Mar-2020
+#andisheh.k v2.0Alpha 11-Mar-2020
 
 #Includes
 my_dir="$(dirname "$0")"
@@ -119,19 +119,6 @@ analyze_stat(){
 	    aveTPS=tpsSum/count;
             printf("%s,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d", lastTime, minSuccRate, aveSuccRate, succRate, maxTPS, aveTPS, lastTPS, lastTPM); 
         }')
-
-#            lastTPS=tps[lastTime];
- #           lastTPM=total[lastTime]/5;
-  #          succRate=succ[lastTime]/total[lastTime]*100;           
-   #         aveSuccRate=succRateSum/count;
-    #        classSuccRate="info";
-     #       if(succRate < aveSuccRate) classSuccRate="warn";
-      #      aveTPS=tpsSum/count;
-       #     classLastTPS="info";
-        #    if(lastTPS > aveTPS) classLastTPS="warn";
-         #   if(lastTPS > threshold) classLastTPS="critical"; 
-
-#            printf(rowFormat, name, lastTime, minSuccRate, aveSuccRate, classSuccRate, succRate, maxTPS, aveTPS, classLastTPS, lastTPS, threshold, lastTPM); }')
 	log DEBUG "Done with code $?"	
 }
 
