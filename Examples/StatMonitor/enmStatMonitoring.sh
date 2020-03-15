@@ -1,23 +1,17 @@
 #!/bin/bash
-#andisheh.k v2.0Alpha 11-Mar-2020
+#andisheh.k v2.0 Final 15-Mar-2020
 
 #Includes
 my_dir="$(dirname "$0")"
 source "$my_dir/utils/lib.logger.sh"
 
 LOG_VERBOS=false
-#Today date for generating the report
 LOG_FILE=CONSOLE
 LOG_LEVEL=INFO
 SEPARATOR=,
 CONFIG_FILE=$my_dir/enmStatMonitoring.properties
 
 log DEBUG "Entered into $0"
-datetime=$(date '+%a %D %T')
-
-reportDate=$(date +%Y-%m-%d)
-
-ROW_FORMAT="<tr><td>%s</td><td align=center>%s</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center>%.1f</td><td align=center>%.1f</td><td align=center class=%s>%.1f</td><td align=center class=note>%-d</td><td align=center class=note>%d</td></tr>"
 
 TITLES[1]=name
 TITLES[2]=lastTime
@@ -29,8 +23,10 @@ TITLES[7]=aveTPS
 TITLES[8]=lastTPS
 TITLES[9]=threshold
 TITLES[10]=lastTPM
-#TITLES[9]=lastTPM
-#TITLES[10]=threshold
+
+#Today date for generating the report
+datetime=$(date '+%a %D %T')
+reportDate=$(date +%Y-%m-%d)
 
 _main(){
     startEpoch=$(date +%s)
@@ -56,9 +52,10 @@ _main(){
     exit 0
 }
 
-#loads the standard bash key/pair configuration file
+#loads the standard bash key/pair configuration file, it will logs if it failes
+#to successfully load the configuratin file.
 #Args: configFile 
-#out: None
+#Out: None
 load_config(){
     log DEBUG "Loading the configurations from $1 ..."
     [ ! -f "$1" ] && (log ERROR "File $1 deos not exist! exiting..." || exit 2)
@@ -73,6 +70,12 @@ load_config(){
     log DEBUG "Done"
 }
 
+#Checks, verifies and extract the flows from the config file
+#Dependency: The configuration file should be loaded before calling
+#	this function. Associative array 'flows' should be defined before
+#	calling this function.
+#Args: None
+#Out: in flows; Loads the configured flows into 'flows' array
 analyze_config(){
     [ -z "$CC_ADDR" ] && log WARN "CC_ADDR is not defined or empty"
     [ -z "$TO_ADDR" ] && log ERROR "TO_ADDR is required to be set in config. Exit 2" && exit 2
@@ -92,10 +95,9 @@ analyze_config(){
     log DEBUG "Done"
 }
 
-#Analyze the stats based on each flow
-#Note: need ROW_FORMAT to be set properly 
-#Args: flow, files, time, threshold
-#Out: in result; a row containing the information based on ROW_FORMAT
+#Analyze the stats based on provided argumetns
+#Args: flow, file patterns, time
+#Out: in result; a commoa separated row containing the information extracted from stats
 analyze_stat(){
     log DEBUG "With args flow:$1 files:$2 date:$3"   
     result=$(zfgrep -h "$1" $2 | \
@@ -122,6 +124,16 @@ analyze_stat(){
 	log DEBUG "Done with code $?"	
 }
 
+#It iterates through the 'flows' and extracts the information into 'data'.
+#It finds the minSuccRate, aveSuccRate, succRate, maxTPS, aveTPS, lastTPS, 
+#lastTPM for each flow in 'flows'. It also checks the type (tag) of each 
+#flow and will combine the rows that has same type (tag). It will take just 
+#adds "maxTPS, aveTPS, lastTPS, lastTPM" & take the average of " minSuccRate, 
+#aveSuccRate, succRate"
+#Dependency: The 'flows', 'data' and 'TITLES' associative arrays should be 
+#defined before calling this function
+#Args: None
+#Out: in data
 generate_data(){
     [ -n "$flows" ] && log ERROR "The associative array 'flows' should be defined, exiting" && exit 2
     [ -n "$data" ] && log ERROR "The associative array 'data' should be defined, exiting" && exit 2
@@ -132,7 +144,7 @@ generate_data(){
         local tmp="$STAT_PATH/${flows[$i,statFile]}"
  #       ls $tmp > /dev/null 2>&1
  #       [ ! $? -eq 0 ] && log ERROR "Nothing found with pattern: $tmp, skipping..." && continue
-        analyze_stat ${flows[$i,flow]} "$tmp*$reportDate* $tmp" $reportDate ${flows[$i,threshold]} ${flows[$i,name]}
+        analyze_stat ${flows[$i,flow]} "$tmp*$reportDate* $tmp" $reportDate
         log DEBUG "Processing $result"
         data[$i,name]=${flows[$i,name]}
         data[$i,threshold]=${flows[$i,threshold]}
@@ -164,6 +176,7 @@ generate_data(){
         log DEBUG "Going to next result"
     done
 
+	#Calcluate and add the combined rows to data
     dataCount=$flowsCount
     for (( i=1; i<=typesCount; i++ )) do
         local tmp=${sumRows[${types[$i]},count]}
@@ -183,19 +196,41 @@ generate_data(){
     log DEBUG "Done, $dataCount rows is inserted into 'data'"
 }
 
+#It converts the information in 'data' into HTML rows
+#Dependency: The 'data' and 'TITLES' associative arrays should be 
+#defined before calling this function
+#Args: None
+#Out: in rows
 prepare_rows() {
     for (( i=1; i<=dataCount; i++)) do
-        for (( j=1; j<=${#TITLES[@]}; j++ )) do
+        local rowName=${data[$i,name]}
+        rows[$i]=$(printf "<td>%s</td>" "$rowName")
+
+        for (( j=2; j<${#TITLES[@]}-1; j++ )) do            
             local tmp=${data[$i,${TITLES[$j]}]}
             [ -z "$tmp" ] && log ERROR "${TITLES[$j]} is empty, returning.." && return 2
-            printf "%s<td>%s</td>" "${rows[$i]}" "$tmp"
-            rows[$i]=$(printf "%s<td>%s</td>" "${rows[$i]}" "$tmp")
+            rows[$i]=$(printf "%s<td align=center>%s</td>" "${rows[$i]}" "$tmp")
         done
-        rows[$i]=$(printf "<tr>%s</tr>" "${rows[$i]}")
+
+        rows[$i]=$(printf "%s<td align=center class=note><span class=fixed>%'d</span></d>" "${rows[$i]}" "${data[$i,threshold]}")
+        local rowTPM=${data[$i,lastTPM]}
+        local tmpClass=info
+        [ $rowTPM -gt ${data[$i,threshold]} ] && tmpClass=critical
+        rows[$i]=$(printf "%s<td align=center class=note><span class=%s>%'d</span></td>" "${rows[$i]}" "$tmpClass" "$rowTPM")
+        local rowFormat="<tr>%s</t>"
+	if [[ $rowName == *" +"* ]]; then
+	    rowFormat="<tr class=note>%s</tr>"          
+        fi
+        rows[$i]=$(printf "$rowFormat" "${rows[$i]}")
     done
     log DEBUG "Done"
 }
 
+#It generates the HTML report
+#Dependency: The 'rows' and 'TITLES' associative arrays should be 
+#defined before calling this function
+#Args: None
+#Out: in rows
 prepare_report(){
     log DEBUG "Writing the report header into $1"
     echo '<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
@@ -228,7 +263,6 @@ prepare_report(){
 <td width=300 valign=middle align=center colspan=3>Trans. Per Second</td>
 <td width=200 valign=middle align=center colspan=2 class=note>Trans. Per Minute</td></tr>
     <tr class=heads style='font-size:12.0pt'>
-<!--    <td class=data>Min</td> -->
     <td width=100 valign=middle align=center>Min</td>
     <td width=100 valign=middle align=center>Average</td>
     <td width=100 valign=middle align=center>Last</td>
