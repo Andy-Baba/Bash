@@ -1,5 +1,5 @@
 #!/bin/bash
-#andisheh.k v2.0 Final 15-Mar-2020
+#andisheh.k v2.1 12-Apr-2020
 
 #Includes
 my_dir="$(dirname "$0")"
@@ -106,7 +106,8 @@ analyze_stat(){
             tps[$1]+=$(NF);total[$1]+=$(NF-1);succ[$1]+=$(NF-3);}
         END { 
             minSuccRate=100; 
-            for (a in tps) {           
+            for (a in tps) {
+                if(total[a]==0) continue;
                 succRate=succ[a]/total[a]*100;
                 lastTPS=tps[a];
                 count++; succRateSum+=succRate; tpsSum+=lastTPS;
@@ -121,7 +122,7 @@ analyze_stat(){
 	    aveTPS=tpsSum/count;
             printf("%s,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d", lastTime, minSuccRate, aveSuccRate, succRate, maxTPS, aveTPS, lastTPS, lastTPM); 
         }')
-	log DEBUG "Done with code $?"	
+	return $?
 }
 
 #It iterates through the 'flows' and extracts the information into 'data'.
@@ -138,13 +139,15 @@ generate_data(){
     [ -n "$flows" ] && log ERROR "The associative array 'flows' should be defined, exiting" && exit 2
     [ -n "$data" ] && log ERROR "The associative array 'data' should be defined, exiting" && exit 2
     declare -A sumRows
-    log DEBUG "Start the preparation"
+    log DEBUG "Start the preparation for $flowsCount flows"
     for (( i=1; i<=flowsCount; i++ ))
     do	
         local tmp="$STAT_PATH/${flows[$i,statFile]}"
  #       ls $tmp > /dev/null 2>&1
  #       [ ! $? -eq 0 ] && log ERROR "Nothing found with pattern: $tmp, skipping..." && continue
         analyze_stat ${flows[$i,flow]} "$tmp*$reportDate* $tmp" $reportDate
+	tmpError=$?
+	[ $tmpError != 0 ] && log ERROR "Analyze stat failed with $tmpError! Skipping to next..." && continue
         log DEBUG "Processing $result"
         data[$i,name]=${flows[$i,name]}
         data[$i,threshold]=${flows[$i,threshold]}
