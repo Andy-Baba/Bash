@@ -1,7 +1,6 @@
 #!/bin/bash
-#andisheh.k v2.1 12-Apr-2020
+#andisheh.k v2.2 22-Apr-2020
 
-#Includes
 my_dir="$(dirname "$0")"
 source "$my_dir/utils/lib.logger.sh"
 
@@ -12,7 +11,7 @@ SEPARATOR=,
 CONFIG_FILE=$my_dir/enmStatMonitoring.properties
 
 log DEBUG "Entered into $0"
-
+ 
 TITLES[1]=name
 TITLES[2]=lastTime
 TITLES[3]=minSuccRate
@@ -24,9 +23,9 @@ TITLES[8]=lastTPS
 TITLES[9]=threshold
 TITLES[10]=lastTPM
 
-#Today date for generating the report
 datetime=$(date '+%a %D %T')
 reportDate=$(date +%Y-%m-%d)
+DURATION=1
 
 _main(){
     startEpoch=$(date +%s)
@@ -52,10 +51,6 @@ _main(){
     exit 0
 }
 
-#loads the standard bash key/pair configuration file, it will logs if it failes
-#to successfully load the configuratin file.
-#Args: configFile 
-#Out: None
 load_config(){
     log DEBUG "Loading the configurations from $1 ..."
     [ ! -f "$1" ] && (log ERROR "File $1 deos not exist! exiting..." || exit 2)
@@ -70,12 +65,6 @@ load_config(){
     log DEBUG "Done"
 }
 
-#Checks, verifies and extract the flows from the config file
-#Dependency: The configuration file should be loaded before calling
-#	this function. Associative array 'flows' should be defined before
-#	calling this function.
-#Args: None
-#Out: in flows; Loads the configured flows into 'flows' array
 analyze_config(){
     [ -z "$CC_ADDR" ] && log WARN "CC_ADDR is not defined or empty"
     [ -z "$TO_ADDR" ] && log ERROR "TO_ADDR is required to be set in config. Exit 2" && exit 2
@@ -87,7 +76,7 @@ analyze_config(){
         var="FLOW_$i"
         [ -z "${!var}" ] && break
         log DEBUG "${!var}"
-        IFS=$SEPARATOR read flows[$i,name] flows[$i,flow] flows[$i,threshold] \
+          IFS=$SEPARATOR read flows[$i,name] flows[$i,flow] flows[$i,threshold] \
             flows[$i,statFile] flows[$i,family] <<< "${!var}"
         flowsCount=$i
     done
@@ -95,13 +84,10 @@ analyze_config(){
     log DEBUG "Done"
 }
 
-#Analyze the stats based on provided argumetns
-#Args: flow, file patterns, time
-#Out: in result; a commoa separated row containing the information extracted from stats
 analyze_stat(){
     log DEBUG "With args flow:$1 files:$2 date:$3"   
     result=$(zfgrep -h "$1" $2 | \
-    awk -v reportDate="$3" -v flow="$1" -F "$SEPARATOR" \
+    awk -v duration="$DURATION" -v reportDate="$3" -v flow="$1" -F "$SEPARATOR" \
         'substr($1,1,10) == reportDate { 
             tps[$1]+=$(NF);total[$1]+=$(NF-1);succ[$1]+=$(NF-3);}
         END { 
@@ -116,7 +102,7 @@ analyze_stat(){
                 if(maxTPS < lastTPS) {maxTime=a; maxTPS=lastTPS}
             }
 	    lastTPS=tps[lastTime];
-            lastTPM=total[lastTime]/5;
+            lastTPM=total[lastTime]/duration;
 	    succRate=succ[lastTime]/total[lastTime]*100;           
 	    aveSuccRate=succRateSum/count;
 	    aveTPS=tpsSum/count;
@@ -125,16 +111,6 @@ analyze_stat(){
 	return $?
 }
 
-#It iterates through the 'flows' and extracts the information into 'data'.
-#It finds the minSuccRate, aveSuccRate, succRate, maxTPS, aveTPS, lastTPS, 
-#lastTPM for each flow in 'flows'. It also checks the type (tag) of each 
-#flow and will combine the rows that has same type (tag). It will take just 
-#adds "maxTPS, aveTPS, lastTPS, lastTPM" & take the average of " minSuccRate, 
-#aveSuccRate, succRate"
-#Dependency: The 'flows', 'data' and 'TITLES' associative arrays should be 
-#defined before calling this function
-#Args: None
-#Out: in data
 generate_data(){
     [ -n "$flows" ] && log ERROR "The associative array 'flows' should be defined, exiting" && exit 2
     [ -n "$data" ] && log ERROR "The associative array 'data' should be defined, exiting" && exit 2
@@ -179,7 +155,6 @@ generate_data(){
         log DEBUG "Going to next result"
     done
 
-	#Calcluate and add the combined rows to data
     dataCount=$flowsCount
     for (( i=1; i<=typesCount; i++ )) do
         local tmp=${sumRows[${types[$i]},count]}
@@ -199,11 +174,6 @@ generate_data(){
     log DEBUG "Done, $dataCount rows is inserted into 'data'"
 }
 
-#It converts the information in 'data' into HTML rows
-#Dependency: The 'data' and 'TITLES' associative arrays should be 
-#defined before calling this function
-#Args: None
-#Out: in rows
 prepare_rows() {
     for (( i=1; i<=dataCount; i++)) do
         local rowName=${data[$i,name]}
@@ -229,11 +199,6 @@ prepare_rows() {
     log DEBUG "Done"
 }
 
-#It generates the HTML report
-#Dependency: The 'rows' and 'TITLES' associative arrays should be 
-#defined before calling this function
-#Args: None
-#Out: in rows
 prepare_report(){
     log DEBUG "Writing the report header into $1"
     echo '<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
@@ -280,9 +245,6 @@ prepare_report(){
     echo "</table><p>Regards,</p><p>Irancell ITS CS ENM</p></div></body></html>" >> $1
 }
 
-#Sends out the report using mutt, and then back up the last sent email
-#Args: report_name to be emailed
-#Out: None 
 send_report(){
     [ ! -f "$1" ] && log ERROR "$1 does not exist" &&  return 2     
     [ ! -z "$CC_ADDR" ] && opt="-c $CC_ADDR"   
